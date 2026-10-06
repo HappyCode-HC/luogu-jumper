@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Luogu Jumper
 // @namespace    https://github.com/HappyCode-HC/luogu-jumper
-// @version      0.1.0
+// @version      0.1.1
 // @description  洛谷跳转器：支持题目跳转 Vjudge
 // @match        https://www.luogu.com.cn/*
 // @grant        none
@@ -50,6 +50,16 @@
         if (luoguPath.startsWith('/problem/P')) {
             const match = luoguPath.match(/P(\d+)/);
             return match ? `https://vjudge.net/problem/洛谷-P${match[1]}` : null;
+        }
+
+        if (luoguPath.startsWith('/problem/U')) {
+            const match = luoguPath.match(/U(\d+)/);
+            return match ? `https://vjudge.net/problem/洛谷-U${match[1]}` : null;
+        }
+
+        if (luoguPath.startsWith('/problem/T')) {
+            const match = luoguPath.match(/T(\d+)/);
+            return match ? `https://vjudge.net/problem/洛谷-T${match[1]}` : null;
         }
 
         return null;
