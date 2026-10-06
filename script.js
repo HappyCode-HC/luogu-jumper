@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         Luogu Jumper
 // @namespace    https://github.com/HappyCode-HC/luogu-jumper
-// @version      0.1.1
-// @description  洛谷跳转器：支持题目跳转 Vjudge
+// @version      0.1.2
+// @description  洛谷跳转器：支持题目跳转 Vjudge，国际站跳转保存站
 // @match        https://www.luogu.com.cn/*
+// @match        https://www.luogu.com/*
 // @grant        none
 // ==/UserScript==
 
+// 题目跳转 Vjudge
 (function () {
     'use strict';
     function getVjudgeUrl() {
@@ -129,4 +131,29 @@
         childList: true,
         subtree: true,
     });
+})();
+
+// 国际站云剪/专栏跳转保存站
+(function () {
+    'use strict';
+    function check() {
+        if (location.hostname !== 'www.luogu.com') return;
+        if (!/^\/(article|paste)\//.test(location.pathname)) return;
+        const target = new URL(location.href);
+        target.hostname = 'www.luogu.me';
+        location.replace(target.href);
+    }
+    check();
+
+    function wrap(fn) {
+        return function (...args) {
+            const result = fn.apply(this, args);
+            check();
+            return result;
+        };
+    }
+    history.pushState = wrap(history.pushState);
+    history.replaceState = wrap(history.replaceState);
+
+    window.addEventListener('popstate', check);
 })();
