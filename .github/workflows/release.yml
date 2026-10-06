@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Bump version and create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Update @version in script.js
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${TAG#v}"
+
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9A-Za-z][0-9A-Za-z._-]*$'; then
+            echo "::error::tag '${TAG}' 不是合法的版本 tag，应形如 v1.2.3"
+            exit 1
+          fi
+
+          # 只替换 userscript 头部里的 // @version 那一行
+          sed -i -E "s|^(//[[:space:]]*@version[[:space:]]+).*$|\1${VERSION}|" script.js
+          grep -n '@version' script.js
+
+          if git diff --quiet -- script.js; then
+            echo "::notice::script.js 的 @version 已经是 ${VERSION}，直接进入 Release"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push the version bump
+        if: steps.version.outputs.changed == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          set -euo pipefail
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add script.js
+          git commit -m "chore: update version number to ${VERSION}"
+          git push origin "HEAD:${DEFAULT_BRANCH}"
+
+      - name: Move the tag to the version bump commit
+        if: steps.version.outputs.changed == 'true'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if [ "$(git cat-file -t "refs/tags/${TAG}")" = "tag" ]; then
+            git tag -l --format='%(contents)' "$TAG" > tag-message.txt
+            git tag -f -a "$TAG" -F tag-message.txt
+            rm -f tag-message.txt
+          else
+            git tag -f "$TAG"
+          fi
+
+          git push -f origin "refs/tags/${TAG}"
+        
+      - name: Generate release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          PREV_TAG="$(git describe --tags --abbrev=0 --match 'v*' --exclude="${TAG}" HEAD 2>/dev/null || true)"
+
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+            echo "## 更新内容（${PREV_TAG} → ${TAG}）" > notes.md
+          else
+            RANGE="HEAD"
+            echo "## 首次发布（${TAG}）" > notes.md
+          fi
+          echo >> notes.md
+
+          git log "$RANGE" --no-merges \
+            --invert-grep --grep='^chore: update version number to ' \
+            --pretty=format:'- %s (%h)' >> notes.md || true
+          echo >> notes.md
+
+          cat notes.md
+
+      - name: Prepare userscript asset
+        run: cp script.js luogu-jumper.user.js
+
+      - name: Create Release and upload the userscript
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" luogu-jumper.user.js --clobber
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file notes.md \
+              --verify-tag \
+              luogu-jumper.user.js
+          fi
