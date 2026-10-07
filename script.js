@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Luogu Jumper
 // @namespace    https://github.com/HappyCode-HC/luogu-jumper
-// @version      0.1.2
+// @version      0.1.3
 // @description  洛谷跳转器：支持题目跳转 Vjudge，国际站跳转保存站
 // @match        https://www.luogu.com.cn/*
 // @match        https://www.luogu.com/*
