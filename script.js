@@ -11,8 +11,20 @@
 // 题目跳转 Vjudge
 (function () {
     'use strict';
+
+    function isContestPrivateProblem(path) {
+        return (
+            /(^|[?&])contestId=/.test(window.location.search) &&
+            /^\/problem\/(T|U)\d+/.test(path)
+        );
+    }
+
     function getVjudgeUrl() {
         const luoguPath = window.location.pathname;
+
+        if (isContestPrivateProblem(luoguPath)) {
+            return null;
+        }
 
         if (luoguPath.startsWith('/problem/CF')) {
             const match = luoguPath.match(/CF(\d+[A-Za-z\d]*)/);
@@ -68,21 +80,25 @@
     }
 
     function tryAddJumpButton() {
-        if (!location.pathname.startsWith('/problem/')) {
+        const oldBtn = document.querySelector('.vjudge-jump-btn');
+        const vjudgeUrl = location.pathname.startsWith('/problem/')
+            ? getVjudgeUrl()
+            : null;
+
+        // 不展示按钮时（如比赛中的私题），把可能残留的按钮移除
+        if (!vjudgeUrl) {
+            oldBtn?.remove();
             return;
         }
 
         const copyBtn = Array.from(document.querySelectorAll('button')).find(
             (btn) => btn.innerText.trim() === '复制题目'
         );
-
-        const vjudgeUrl = getVjudgeUrl();
-        if (!copyBtn || !vjudgeUrl) {
+        if (!copyBtn) {
             return;
         }
 
-        const oldBtn = copyBtn.nextElementSibling;
-        if (oldBtn?.classList.contains('vjudge-jump-btn')) {
+        if (oldBtn) {
             if (oldBtn.dataset.url === vjudgeUrl) {
                 return;
             }
