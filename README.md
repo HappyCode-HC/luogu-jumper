@@ -59,6 +59,25 @@ node build.js                   # 沿用已有产物里的版本号
 
 产物 `script.js` 写在仓库根目录，已加入 `.gitignore`，不入库：仓库只保存 `src/` 源码与构建脚本，发版时由 CI 重新构建。
 
+## 检查
+
+推 `main` / `dev` 与提 PR 都会跑 `.github/workflows/ci.yml`：先按与发版相同的方式构建一遍产物（含 `--version` 注入），再执行 `scripts/check-userscript.js`。这个自检只用 Node 标准库，和构建脚本一样不引入第三方依赖，覆盖：
+
+- `src/` 模块的命名（两位数字前缀决定合并顺序）、语法、缩进/行尾/末尾换行；
+- 头部元数据：`@version` 必须是 `__VERSION__` 占位符、`@match` 不能过宽、`@updateURL` / `@downloadURL` 指向本仓库且与 Release 资产同名；
+- 代码与 `@grant` 是否对得上：用了没声明、声明了没用都会报出来；
+- 产物是否完整（模块一个不漏、顺序正确、占位符已替换）；
+- `.github/workflows/` 里的 `uses:` 是否固定版本、`permissions` 是否收敛。
+
+本地跑同样的检查：
+
+```bash
+npm run check     # 先构建再自检
+npm run verify    # 只自检，要求产物已存在
+```
+
+CI 还会把构建好的 `luogu-jumper.user.js` 作为 artifact 上传，PR 页面可以直接下载安装试用。注意它的 `@updateURL` 仍指向 latest release，脚本管理器下次检查更新时会把 PR 版本换回正式版本。
+
 ## 发布
 
 推一个 `v*` tag 即可发布，`Release` 工作流会合并 `src/` 模块、把头部 `@version` 写成 tag 版本号，再把产物作为 `luogu-jumper.user.js` 附到 Release 上。产物不提交进仓库，所以发布不改动代码历史。

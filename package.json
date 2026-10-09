@@ -4,6 +4,7 @@
   "description": "洛谷跳转器 userscript：题目跳转 Vjudge，国际站跳转保存站",
   "scripts": {
     "build": "node build.js",
-    "check": "node --check script.js"
+    "verify": "node scripts/check-userscript.js --require-artifact",
+    "check": "node build.js && npm run verify"
   }
 }

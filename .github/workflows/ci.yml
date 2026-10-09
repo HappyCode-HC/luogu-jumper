@@ -1,0 +1,52 @@
+name: CI
+
+# 推 main / dev 与提 PR 都跑同一套检查，主干分支上的每个提交都过过一次 PR 门禁。
+# 有意不用 paths 过滤：工作流一旦设成必需检查，被 paths 过滤掉的 PR 会一直停在
+# Expected 而无法合并。仓库很小，检查只要十几秒，不值得为省这点时间换这个坑。
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: 构建与静态检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 走和发版一样的 --version 注入路径，顺便验证版本号确实写进了头部
+      - name: Build userscript
+        run: node build.js --version "0.0.0-ci.${GITHUB_RUN_NUMBER}"
+
+      - name: Verify
+        run: node scripts/check-userscript.js --require-artifact
+
+      # 改名为 .user.js，PR 里可以直接下载装到浏览器上试（release 用的也是这个文件名）
+      - name: Prepare installable userscript
+        run: cp script.js luogu-jumper.user.js
+
+      - name: Upload installable userscript
+        uses: actions/upload-artifact@v4
+        with:
+          name: luogu-jumper-user-js
+          path: luogu-jumper.user.js
+          if-no-files-found: error
+          retention-days: 14
