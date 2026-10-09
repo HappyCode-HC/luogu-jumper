@@ -1,5 +1,8 @@
 name: Release
 
+# 打 tag 触发：合并 src/ 模块 → 写头部版本号 → 提交版本号 → 移动 tag → 发布 Release。
+# tag 被移动到版本号提交后本工作流会再跑一次，此时产物已经带上版本号，
+# 直接跳过提交和移动 tag，只把 Release 资产更新掉，因此不会来回循环。
 on:
   push:
     tags:
@@ -14,7 +17,7 @@ concurrency:
 
 jobs:
   release:
-    name: Bump version and create Release
+    name: Build and publish userscript
     runs-on: ubuntu-latest
     steps:
       - name: Checkout default branch
@@ -24,10 +27,16 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Update @version in script.js
-        id: version
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build userscript
+        id: build
         env:
           TAG: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
 
@@ -38,24 +47,36 @@ jobs:
             exit 1
           fi
 
-          # 只替换 userscript 头部里的 // @version 那一行
-          sed -i -E "s|^(//[[:space:]]*@version[[:space:]]+).*$|\1${VERSION}|" script.js
-          grep -n '@version' script.js
-
-          if git diff --quiet -- script.js; then
-            echo "::notice::script.js 的 @version 已经是 ${VERSION}，直接进入 Release"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Commit and push the version bump
-        if: steps.version.outputs.changed == 'true'
+          # 切到默认分支的本地分支，后面的提交和推送都基于它
+          git checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
+
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+
+          # tag 指向版本号提交、且产物已经带着这个版本号，
+          # 说明版本号提交和移动 tag 都做过了（本工作流就是被那次移动 tag 触发的）
+          TAG_COMMIT_MESSAGE="$(git log -1 --format=%s "refs/tags/${TAG}")"
+          if grep -qxF "// @version      ${VERSION}" script.js \
+            && [ "$TAG_COMMIT_MESSAGE" = "chore: update version number to ${VERSION}" ]; then
+            echo "::notice::script.js 的 @version 已是 ${VERSION}，且 ${TAG} 已指向版本号提交，跳过版本号提交"
+            exit 0
+          fi
+
+          node build.js --version "$VERSION"
+          grep -n '// @version' script.js
+
+          if git diff --quiet -- script.js; then
+            echo "::notice::合并结果与已提交的 script.js 一致，跳过版本号提交"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit the version number
+        if: steps.build.outputs.changed == 'true'
         env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          VERSION: ${{ steps.version.outputs.VERSION }}
+          VERSION: ${{ steps.build.outputs.VERSION }}
         run: |
           set -euo pipefail
 
@@ -63,11 +84,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add script.js
-          git commit -m "chore: update version number to ${VERSION}"
-          git push origin "HEAD:${DEFAULT_BRANCH}"
+          if git diff --cached --quiet; then
+            echo "::notice::没有需要提交的改动"
+            exit 0
+          fi
 
-      - name: Move the tag to the version bump commit
-        if: steps.version.outputs.changed == 'true'
+          git commit -m "chore: update version number to ${VERSION}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Move the tag to the version number commit
+        if: steps.build.outputs.changed == 'true'
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -82,7 +108,7 @@ jobs:
           fi
 
           git push -f origin "refs/tags/${TAG}"
-        
+
       - name: Generate release notes
         env:
           TAG: ${{ github.ref_name }}
