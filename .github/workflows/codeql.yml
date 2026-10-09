@@ -1,0 +1,46 @@
+name: CodeQL
+
+# 与 CI 相同的三个触发点：推 main / dev 与提 PR。
+# 没加 schedule：定时扫描只影响「新发布的查询包会不会回头重扫旧代码」，
+# 需要的话在这里加一节 cron 即可。
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: 静态安全分析
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read          # checkout
+      security-events: write  # 上传 SARIF，缺这条结果进不了 code scanning
+      actions: read           # 读取工作流自身信息
+      packages: read          # 解析 CodeQL 查询包
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # JS 不用编译，CodeQL 直接按源码建库；分析的是 src/ 源码，不是被 gitignore 的产物。
+      # queries 用 security-extended（比默认集多一批低危安全查询）；嫌吵就删掉这一行回到默认集。
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript

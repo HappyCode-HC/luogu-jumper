@@ -78,6 +78,8 @@ npm run verify    # 只自检，要求产物已存在
 
 CI 还会把构建好的 `luogu-jumper.user.js` 作为 artifact 上传，PR 页面可以直接下载安装试用。注意它的 `@updateURL` 仍指向 latest release，脚本管理器下次检查更新时会把 PR 版本换回正式版本。
 
+另外 `.github/workflows/codeql.yml` 在同样的三个触发点上跑 CodeQL 的 `security-extended` 查询集，结果会出现在 PR 的检查里和仓库的 Security → Code scanning 页。默认只是告警，不拦合并；要让高危发现卡住 PR，得在分支规则里再加一条「Require code scanning results」。
+
 ## 发布
 
 推一个 `v*` tag 即可发布，`Release` 工作流会合并 `src/` 模块、把头部 `@version` 写成 tag 版本号，再把产物作为 `luogu-jumper.user.js` 附到 Release 上。产物不提交进仓库，所以发布不改动代码历史。
