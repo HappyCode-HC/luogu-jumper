@@ -284,6 +284,7 @@
     });
 })();
 
+
 // 国际站云剪/专栏跳转保存站
 (function () {
     'use strict';
@@ -322,6 +323,7 @@
 
     window.addEventListener('popstate', check);
 })();
+
 
 // 更新检查
 // 油猴管理器没有提供触发更新检查的接口，也做不到在原地替换脚本，
@@ -486,6 +488,7 @@
 
     globalThis.__ljjUpdate = { checkForUpdates, compareVersion, currentVersion };
 })();
+
 
 // 用户设置页的扩展设置选项卡
 (function () {
@@ -790,4 +793,3 @@
         waiter.observe(document.documentElement, { childList: true, subtree: true });
     }
 })();
-

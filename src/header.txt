@@ -1,0 +1,20 @@
+// ==UserScript==
+// @name         Luogu Jumper
+// @namespace    https://github.com/HappyCode-HC/luogu-jumper
+// @version      __VERSION__
+// @description  洛谷跳转器：支持题目跳转 Vjudge，国际站跳转保存站
+// @match        https://www.luogu.com.cn/*
+// @match        https://www.luogu.com/*
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_notification
+// @grant        GM_xmlhttpRequest
+// @grant        GM.getValue
+// @grant        GM.setValue
+// @grant        GM.notification
+// @grant        GM.xmlHttpRequest
+// @grant        unsafeWindow
+// @updateURL    https://github.com/HappyCode-HC/luogu-jumper/releases/latest/download/luogu-jumper.user.js
+// @downloadURL  https://github.com/HappyCode-HC/luogu-jumper/releases/latest/download/luogu-jumper.user.js
+// @connect      api.github.com
+// ==/UserScript==
