@@ -49,27 +49,17 @@
 | `src/40-settings.js` | 用户设置页的扩展设置选项卡 |
 | `src/header.txt` | userscript 头部，`@version` 用 `__VERSION__` 占位 |
 
-`build.js` 把模块按文件名顺序合并，并用 `--version` 指定的值替换头部占位符，输出仓库根目录的 `script.js`：
+`build.js` 把模块按文件名顺序合并，并用 `--version` 指定的值替换头部占位符：
 
 ```bash
 node build.js --version 1.2.3   # 写入指定版本号
 node build.js --no-version      # 不写版本号，头部回落 0.0.0
-node build.js                   # 沿用 script.js 里已有的版本号
+node build.js                   # 沿用已有产物里的版本号
 ```
 
-仓库没有第三方依赖，`script.js` 作为产物一并提交，方便直接安装和阅读。
+产物 `script.js` 写在仓库根目录，已加入 `.gitignore`，不入库：仓库只保存 `src/` 源码与构建脚本，发版时由 CI 重新构建。
 
 ## 发布
 
-推一个 `v*` tag 即可发布，`Release` 工作流会：
-
-1. 合并 `src/` 模块，把头部 `@version` 写成 tag 版本号；
-2. 提交这次改动，再把 tag 移到这个「写版本号」的提交上；
-3. 发布 Release，附上 `luogu-jumper.user.js`。
-
-tag 被移走后工作流会再跑一次，此时产物已经带着版本号，只更新 Release 资产，不会反复提交。
-
-Release 被撤销或删除时，`Unpublish` 工作流执行相反的操作：重新合并、去掉头部版本号，提交这次改动，再把 tag 挪回不含版本号的源码提交。这样下一次发布时会重新合并、重新写版本号、重新打 tag。
-
-`script.js` 里带着上次发版的版本号，从源码安装不影响使用；版本号只在打 tag 时由 CI 改写。
+推一个 `v*` tag 即可发布，`Release` 工作流会合并 `src/` 模块、把头部 `@version` 写成 tag 版本号，再把产物作为 `luogu-jumper.user.js` 附到 Release 上。产物不提交进仓库，所以发布不改动代码历史。
 

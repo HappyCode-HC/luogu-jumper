@@ -1,0 +1,3 @@
+# 构建产物：由 src/ 合并生成，发版时由 CI 重新构建，不入库
+script.js
+luogu-jumper.user.js
