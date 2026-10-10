@@ -23,14 +23,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
 
       # 走和发版一样的 --version 注入路径，顺便验证版本号确实写进了头部
       - name: Build userscript
@@ -44,7 +44,7 @@ jobs:
         run: cp script.js luogu-jumper.user.js
 
       - name: Upload installable userscript
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: luogu-jumper-user-js
           path: luogu-jumper.user.js
