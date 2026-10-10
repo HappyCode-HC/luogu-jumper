@@ -613,6 +613,11 @@ function pushHasBranches(text) {
     return false;
 }
 
+// 只看整行注释之外的文本：注释里提到 pull_request_target 不等于用了它
+function withoutComments(text) {
+    return text.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+}
+
 function checkWorkflows(downloadName) {
     console.log('\n== .github/workflows ==');
     let names;
@@ -644,7 +649,8 @@ function checkWorkflows(downloadName) {
         if (!/^concurrency:/m.test(text)) {
             warn(file, 0, '没有 concurrency：同一分支连续推送会排队重复跑');
         }
-        if (/\bpull_request_target\b/.test(text)) {
+        const code = withoutComments(text);
+        if (/\bpull_request_target\b/.test(code)) {
             warn(file, 0, '用了 pull_request_target：若再 checkout PR 的代码，就等于把写权限交给外部贡献者');
         }
 
