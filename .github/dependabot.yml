@@ -1,0 +1,18 @@
+version: 2
+
+# 只跟 GitHub Actions：仓库本身没有第三方依赖（构建与自检都用 Node 标准库），
+# 用 npx 拉起来的 ESLint / markdownlint / cspell 版本写在各自的 workflow 里。
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      # 新版本先放一周：抢在别人之前用上刚发布的 action，是在替供应链事故试毒
+      default-days: 7
+    groups:
+      # 一次 PR 一起升，别把 workflows 刷成十几条通知
+      actions:
+        patterns:
+          - '*'
