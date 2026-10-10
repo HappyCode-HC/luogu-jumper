@@ -1,13 +1,16 @@
 name: CodeQL
 
-# 与 CI 相同的三个触发点：推 main / dev 与提 PR。
+# 触发点与 CI 差一处：推 main 与提 PR，**不含推 dev**。
+# 原因是 dev→main 的 PR 开着时，推 dev 会同时触发 push 与 pull_request 两次运行。
+# CodeQL 是四个工作流里最慢的（约 70 秒），把它从 dev 的推送里摘掉，重复的就只剩
+# CI / Test / Lint JS 那三个十几秒的；dev 的即时反馈和 PR 上的门禁都不受影响
+# （必需检查按作业名匹配，名字没变）。
 # 没加 schedule：定时扫描只影响「新发布的查询包会不会回头重扫旧代码」，
 # 需要的话在这里加一节 cron 即可。
 on:
   push:
     branches:
       - main
-      - dev
   pull_request:
 
 permissions:
