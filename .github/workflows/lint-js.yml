@@ -1,0 +1,35 @@
+name: Lint JS
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-js-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # 不写进 package.json：仓库保持零依赖，ESLint 现拉现用。
+      # 规则集与全局名在 eslint.config.mjs 里，刻意不 import 包（npx 环境解析不到）。
+      - name: ESLint
+        run: npx --yes eslint@10 .
