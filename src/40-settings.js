@@ -8,7 +8,7 @@
     }
 
     // 与洛谷原生选项卡并列的扩展设置项，URL 上的标记参数
-    const TAB_LABEL = '扩展设置';
+    const TAB_LABEL = 'Luogu Jumper 设置';
     const FLAG = 'luogu-jumper-setting';
     // 只认未哈希的类名：data-v-* 每次发版都会变，硬编码必然失效
     const TAB_LIST = '.header-card .bottom-row .left .menu > ul.items';
@@ -22,9 +22,10 @@
         }
     }
 
-    // 只处理用户设置页及其子路径
-    if (!/^\/user\/setting(?![^/])/.test(location.pathname)) {
-        return;
+    // 洛谷是 SPA，换页不会重新执行脚本：路径必须在每次 sync 时判定，
+    // 不能只在加载时判一次，否则换页进设置页看不到注入、换页离开又拆不掉
+    function isSettingPage() {
+        return /^\/user\/setting(?![^/])/.test(location.pathname);
     }
 
     function setFlag(on) {
@@ -47,80 +48,149 @@
         }
     }
 
-    function makeRow(labelText, control, hintText) {
+    // 洛谷单选框的主题蓝，与原生「学术模式」等设置项的选中色一致
+    const ACCENT = 'rgb(52, 152, 219)';
+
+    // 原生单选框是靠 FontAwesome 图标 + scoped CSS 画出来的空心圈/实心点样式，
+    // 裸 DOM 拿不到那套 scoped 规则，干脆自己注入一份不依赖哈希类名的样式，
+    // 用 appearance:none 在原生 input 上画同款圆圈
+    let stylesInjected = false;
+    function ensureStyles() {
+        if (stylesInjected) {
+            return;
+        }
+        stylesInjected = true;
+
+        const style = document.createElement('style');
+        style.textContent = `
+            .ljj-radio-row { display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 6px; }
+            .ljj-radio {
+                appearance: none;
+                -webkit-appearance: none;
+                position: relative;
+                flex: 0 0 auto;
+                width: 14px;
+                height: 14px;
+                margin: 0;
+                border: 1.5px solid ${ACCENT};
+                border-radius: 50%;
+                cursor: pointer;
+            }
+            .ljj-radio:checked::after {
+                content: '';
+                position: absolute;
+                top: 3px;
+                left: 3px;
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: ${ACCENT};
+            }
+            .ljj-button {
+                padding: 5px 14px;
+                border: none;
+                border-radius: 3px;
+                background: ${ACCENT};
+                color: #fff;
+                font-size: 14px;
+                line-height: 1.5;
+                cursor: pointer;
+            }
+            .ljj-button:disabled {
+                opacity: 0.6;
+                cursor: default;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 功能行：标签 + 浅色功能介绍 + 关闭/开启单选，左右两栏对齐洛谷原生设置项的排版。
+    // .l-form-layout.row 的左右分栏样式是 Vue scoped CSS，绑定着每版都变的 data-v-* hash，
+    // 我们的裸 DOM 拿不到这个 hash、吃不到那条规则，所以布局必须自己用内联样式摆，
+    // class 只用来蹭字体、颜色之类的全局样式
+    function makeRow(labelText, key, descText) {
         const row = document.createElement('div');
         row.className = 'l-form-layout row';
+        row.style.display = 'flex';
+        row.style.alignItems = 'flex-start';
+        row.style.gap = '24px';
         row.style.marginBottom = '14px';
 
         const label = document.createElement('span');
+        label.style.flex = '0 0 140px';
+        label.style.fontWeight = '600';
         label.textContent = labelText;
 
         const box = document.createElement('div');
+        box.style.flex = '1 1 auto';
 
-        const line = document.createElement('label');
-        line.style.display = 'flex';
-        line.style.alignItems = 'center';
-        line.style.gap = '8px';
-        line.style.cursor = 'pointer';
-        line.appendChild(control);
+        const desc = document.createElement('p');
+        desc.style.margin = '0 0 10px';
+        desc.style.fontSize = '13px';
+        desc.style.opacity = '0.75';
+        desc.textContent = descText;
+        box.appendChild(desc);
 
-        const name = document.createElement('span');
-        name.textContent = hintText;
-        line.appendChild(name);
+        box.appendChild(makeRadioGroup(key));
 
-        box.appendChild(line);
         row.appendChild(label);
         row.appendChild(box);
         return row;
     }
 
-    function makeCheckbox(key) {
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.checked = Boolean(cfg.getConfig()[key]);
-        input.addEventListener('change', () => {
-            cfg.setConfig(key, input.checked);
-            setStatus('设置已保存，刷新页面后生效');
+    function makeRadioGroup(key) {
+        const group = document.createElement('div');
+        const current = Boolean(cfg.getConfig()[key]);
+
+        [['关闭', false], ['开启', true]].forEach(([text, value]) => {
+            const line = document.createElement('label');
+            line.className = 'ljj-radio-row';
+
+            const input = document.createElement('input');
+            input.type = 'radio';
+            input.className = 'ljj-radio';
+            input.name = 'ljj-' + key;
+            input.checked = current === value;
+            input.addEventListener('change', () => {
+                if (!input.checked) {
+                    return;
+                }
+                cfg.setConfig(key, value);
+                setStatus('设置已保存，刷新页面后生效');
+            });
+            line.appendChild(input);
+
+            const name = document.createElement('span');
+            name.textContent = text;
+            line.appendChild(name);
+
+            group.appendChild(line);
         });
-        return input;
+
+        return group;
     }
 
     let card = null;
 
     function buildCard() {
+        ensureStyles();
+
         const el = document.createElement('div');
         el.className = 'l-card';
         el.style.padding = '20px';
-
-        const title = document.createElement('h2');
-        title.className = 'lfe-h2';
-        title.textContent = TAB_LABEL;
-        el.appendChild(title);
 
         const hint = document.createElement('p');
         hint.style.margin = '4px 0 16px';
         hint.style.opacity = '0.75';
         hint.style.fontSize = '13px';
-        hint.textContent = '所有开关在页面加载时读取一次，修改后刷新页面生效。';
+        hint.textContent = '修改后刷新页面生效。';
         el.appendChild(hint);
 
-        const featureTitle = document.createElement('h3');
-        featureTitle.className = 'lfe-h3';
-        featureTitle.textContent = '功能开关';
-        el.appendChild(featureTitle);
+        el.appendChild(makeRow('题目跳转', 'problemVjudge', '在题目页显示「跳转VJudge」按钮'));
+        el.appendChild(makeRow('国际站跳转', 'intlRedirect', '国际站云剪/专栏自动跳转到保存站'));
+        el.appendChild(makeRow('新版本提醒', 'updateNotice', '发现新版本时通知一次'));
 
-        el.appendChild(makeRow('题目跳转', makeCheckbox('problemVjudge'), '在题目页显示「跳转VJudge」按钮'));
-        el.appendChild(makeRow('国际站跳转', makeCheckbox('intlRedirect'), '国际站云剪/专栏自动跳转到保存站'));
-
-        const updateTitle = document.createElement('h3');
-        updateTitle.className = 'lfe-h3';
-        updateTitle.textContent = '更新选项';
-        updateTitle.style.marginTop = '22px';
-        el.appendChild(updateTitle);
-
-        el.appendChild(makeRow('新版本提醒', makeCheckbox('updateNotice'), '发现新版本时通知一次'));
-
-        el.appendChild(buildUpdateRow());
+        el.appendChild(makeUpdateRow());
 
         // 卡片是裸 DOM，可能被 Vue 重建；重建后状态要重新填充
         requestAnimationFrame(() => refreshUpdateStatus(false));
@@ -128,41 +198,52 @@
         return el;
     }
 
-    function buildUpdateRow() {
-        const status = document.createElement('div');
+    // 插件更新行：左侧粗体标签，右侧浅色版本信息 + 检查更新按钮，布局对齐功能开关行
+    function makeUpdateRow() {
+        const row = document.createElement('div');
+        row.className = 'l-form-layout row';
+        row.style.display = 'flex';
+        row.style.alignItems = 'flex-start';
+        row.style.gap = '24px';
+        row.style.marginTop = '22px';
 
-        const current = document.createElement('div');
+        const label = document.createElement('span');
+        label.style.flex = '0 0 140px';
+        label.style.fontWeight = '600';
+        label.textContent = '插件更新';
+
+        const box = document.createElement('div');
+        box.style.flex = '1 1 auto';
+
+        const current = document.createElement('p');
+        current.style.margin = '0 0 4px';
         current.style.fontSize = '13px';
         current.style.opacity = '0.75';
-        current.textContent = '当前版本：' + version();
-        status.appendChild(current);
+        current.textContent = '当前版本：v' + version();
+        box.appendChild(current);
 
-        const line = document.createElement('div');
-        line.style.display = 'flex';
-        line.style.alignItems = 'center';
-        line.style.gap = '10px';
-        line.style.marginTop = '8px';
+        const note = document.createElement('p');
+        note.id = 'ljj-update-status';
+        note.style.margin = '0 0 10px';
+        note.style.fontSize = '13px';
+        note.style.opacity = '0.75';
+        box.appendChild(note);
 
         const button = document.createElement('button');
         button.type = 'button';
         button.id = 'ljj-update-button';
-        button.className = 'lfe-button';
+        button.className = 'ljj-button';
         button.textContent = '检查更新';
         button.addEventListener('click', () => {
             if (globalThis.__ljjUpdate) {
                 globalThis.__ljjUpdate.checkForUpdates(true);
             }
         });
-        line.appendChild(button);
+        box.appendChild(button);
 
-        const note = document.createElement('span');
-        note.id = 'ljj-update-status';
-        note.style.fontSize = '13px';
-        note.style.opacity = '0.8';
-        line.appendChild(note);
-
-        status.appendChild(line);
-        return status;
+        row.appendChild(label);
+        row.appendChild(box);
+        return row;
     }
 
     function refreshUpdateStatus(force) {
@@ -209,27 +290,92 @@
     }
 
     let injectedTab = null;
+    // 被我们隐藏过的原生卡片；拆除时要还原内联样式，
+    // 免得 Vue 跨页面复用节点时把 display:none 带到别的页面
+    const hiddenCards = new Set();
+    // 被我们摘掉 selected 的原生选项卡；该状态是 Vue 按真实路由渲染的，
+    // 我们的 URL 参数切页不会触发 Vue 重算，摘掉后必须自己摘回去
+    const suppressedTabs = new Set();
+    // sync 由 DOM 变动高频驱动，克隆失败的告警只报一次
+    let cloneWarned = false;
+
+    function listEntries(list) {
+        return Array.from(list.querySelectorAll('li'))
+            .map((item) => item.querySelector('span.entry') || item.querySelector('span'))
+            .filter(Boolean);
+    }
+
+    // 原生选项卡的高亮由 Vue 按当前路由渲染，不会因为我们换 URL 参数而改变；
+    // 扩展选项卡激活时要手动摘掉它，切回去时再还给它
+    function syncNativeSelection(list, show) {
+        if (show) {
+            listEntries(list).forEach((entry) => {
+                if (injectedTab && injectedTab.contains(entry)) {
+                    return;
+                }
+                if (entry.classList.contains('selected')) {
+                    entry.classList.remove('selected');
+                    suppressedTabs.add(entry);
+                }
+            });
+        } else {
+            suppressedTabs.forEach((entry) => entry.classList.add('selected'));
+            suppressedTabs.clear();
+        }
+    }
+
+    // SPA 换页离开设置页后清掉全部注入痕迹：
+    // 裸 DOM 节点对 Vue 不可见，不主动拆就会残留在复用了同结构的页面上
+    function teardown() {
+        if (injectedTab) {
+            injectedTab.remove();
+            injectedTab = null;
+        }
+        if (card) {
+            card.remove();
+        }
+        hiddenCards.forEach((node) => {
+            node.style.display = '';
+        });
+        hiddenCards.clear();
+        suppressedTabs.forEach((entry) => entry.classList.add('selected'));
+        suppressedTabs.clear();
+    }
 
     function sync() {
+        // 只处理用户设置页及其子路径；其余页面一律拆除后返回
+        if (!isSettingPage()) {
+            teardown();
+            return;
+        }
+
         const list = document.querySelector(TAB_LIST);
         const show = hasFlag(location.href);
 
         if (list) {
-            if (!injectedTab || !injectedTab.isConnected) {
+            // Vue 重建后旧选项卡会脱离文档或挂在已被替换的列表上，从当前列表重新克隆
+            if (injectedTab && injectedTab.parentNode !== list) {
+                injectedTab.remove();
+                injectedTab = null;
+            }
+            if (!injectedTab) {
                 injectedTab = cloneTab();
                 if (injectedTab) {
                     list.appendChild(injectedTab);
-                } else {
+                } else if (!cloneWarned) {
+                    cloneWarned = true;
                     console.warn('[Luogu Jumper] 未能克隆设置页选项卡，扩展设置入口暂不可用');
                 }
             }
             if (injectedTab) {
-                // 绝不抢原生选项卡的高亮：激活态只由 URL 参数决定
+                // 激活态只由 URL 参数决定，但原生选项卡的高亮要一并摘掉/还回去，
+                // 否则两个选项卡会同时亮着
                 const entry = injectedTab.querySelector('span.entry');
                 if (entry) {
                     entry.classList.toggle('selected', show);
                 }
             }
+            syncNativeSelection(list, show);
         }
 
         const container = document.querySelector(CONTENT);
@@ -245,8 +391,14 @@
         }
 
         container.querySelectorAll('.l-card').forEach((node) => {
-            if (node !== card) {
-                node.style.display = show ? 'none' : '';
+            if (node === card) {
+                return;
+            }
+            node.style.display = show ? 'none' : '';
+            if (show) {
+                hiddenCards.add(node);
+            } else {
+                hiddenCards.delete(node);
             }
         });
         card.style.display = show ? '' : 'none';
@@ -263,15 +415,22 @@
         });
     }
 
-    // 只观察洛谷的选项卡容器，避免全文档级别的回调抖动
-    function observe() {
-        const list = document.querySelector(TAB_LIST);
-        if (!list) {
-            return false;
+    // SPA 换页时 URL 先于 DOM 变化，挂上 pushState/replaceState 是最早的可靠信号。
+    // 与 20-international 一致：window.history 覆盖不到页面世界时补打页面世界的 History
+    const historyTarget = (cfg.pageWindow && cfg.pageWindow.history !== history)
+        ? cfg.pageWindow.history
+        : history;
+    ['pushState', 'replaceState'].forEach((name) => {
+        const native = historyTarget[name];
+        if (typeof native !== 'function') {
+            return;
         }
-        new MutationObserver(schedule).observe(list, { childList: true });
-        return true;
-    }
+        historyTarget[name] = function (...args) {
+            const result = native.apply(this, args);
+            schedule();
+            return result;
+        };
+    });
 
     window.addEventListener('popstate', () => {
         setFlag(false);
@@ -289,15 +448,9 @@
         }
     }, true);
 
-    if (observe()) {
-        sync();
-    } else {
-        const waiter = new MutationObserver(() => {
-            if (observe()) {
-                waiter.disconnect();
-                sync();
-            }
-        });
-        waiter.observe(document.documentElement, { childList: true, subtree: true });
-    }
+    // Vue 异步渲染、节点重建与 SPA 换页都表现为 DOM 增删：常驻文档级观察 + rAF 防抖。
+    // 不能只盯单个选项卡容器——换页后旧节点脱离文档，观察器就再也收不到信号；
+    // sync 幂等，非设置页时只做一次路径判断加空拆除，文档级回调没有性能问题
+    new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+    sync();
 })();

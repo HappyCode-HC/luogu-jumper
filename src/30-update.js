@@ -101,7 +101,7 @@
             button.onclick = () => {
                 window.open(cfg.UPDATE_URL, '_blank', 'noopener');
             };
-            note.textContent = '发现新版本 v' + info.latest + '（当前 v' + info.current + '）';
+            note.textContent = '最新版本：v' + info.latest + '（可更新）';
             return;
         }
         button.disabled = false;
@@ -109,7 +109,7 @@
         button.onclick = () => {
             checkForUpdates(true);
         };
-        note.textContent = info.text || ('已是最新版本（v' + info.current + '）');
+        note.textContent = info.text || ('最新版本：v' + info.current + '（已是最新）');
     }
 
     async function checkForUpdates(force) {

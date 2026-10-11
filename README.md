@@ -2,7 +2,7 @@
 
 ## 安装
 
-首先，你需要一个脚本管理器，例如Tampermonkey 或 Violentmonkey。
+首先，你需要一个脚本管理器，例如 Tampermonkey 或 Violentmonkey。
 
 打开 [Release 页面](https://github.com/HappyCode-HC/luogu-jumper/releases)，点击 `luogu-jumper.user.js` 即可安装。
 
@@ -20,11 +20,11 @@
 
 ## 扩展设置
 
-打开[用户设置](https://www.luogu.com.cn/user/setting)，选项卡里会多出一个「扩展设置」，与「个人信息」「偏好设置」等并列，里面是各功能的开关和更新选项。
+打开[用户设置](https://www.luogu.com.cn/user/setting)，选项卡里会多出一个「Luogu Jumper 设置」，里面是各功能的开关和更新选项。
 
 - 开关在页面加载时读取一次，改完需要刷新页面生效。
 - 扩展设置的状态记录在地址栏参数 `?luogu-jumper-setting` 上，因此可以直接收藏或分享带该参数的链接；不带参数时进入的是洛谷原生的「个人信息」。
-- 该选项卡只出现在用户设置页，其他页面不做改动。
+- 该选项卡只出现在用户设置页。
 
 ## 更新
 
