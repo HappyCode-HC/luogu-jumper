@@ -421,12 +421,15 @@ test('SPA 换页进设置页能注入扩展设置，离开时拆干净', () => {
     assert.equal(card.style.display, '', '点击后卡片应可见');
     assert.equal(nativeCard.style.display, 'none', '原生卡片应被隐藏');
     assert.ok(tab.querySelector('span.entry').classList.contains('selected'), '选项卡应高亮');
+    const nativeTab = list.childNodes[0].querySelector('span.entry');
+    assert.ok(!nativeTab.classList.contains('selected'), '原生选项卡不该跟扩展设置一起高亮');
 
     // 再不刷新换回题单页：注入应全部拆除，原生卡片的内联样式要还原
     env.navigate('/problem/list');
     assert.equal(list.childNodes.length, 1, '离开设置页应移除扩展设置选项卡');
     assert.equal(content.childNodes.length, 1, '离开设置页应移除扩展设置卡片');
     assert.equal(nativeCard.style.display, '', '原生卡片的内联样式应被还原');
+    assert.ok(nativeTab.classList.contains('selected'), '离开设置页应还原原生选项卡的高亮');
     assert.equal(env.pages.problem.list.childNodes.length, 1, '题单页仍不该出现扩展设置');
 });
 

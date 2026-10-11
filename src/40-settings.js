@@ -213,8 +213,36 @@
     // 被我们隐藏过的原生卡片；拆除时要还原内联样式，
     // 免得 Vue 跨页面复用节点时把 display:none 带到别的页面
     const hiddenCards = new Set();
+    // 被我们摘掉 selected 的原生选项卡；该状态是 Vue 按真实路由渲染的，
+    // 我们的 URL 参数切页不会触发 Vue 重算，摘掉后必须自己摘回去
+    const suppressedTabs = new Set();
     // sync 由 DOM 变动高频驱动，克隆失败的告警只报一次
     let cloneWarned = false;
+
+    function listEntries(list) {
+        return Array.from(list.querySelectorAll('li'))
+            .map((item) => item.querySelector('span.entry') || item.querySelector('span'))
+            .filter(Boolean);
+    }
+
+    // 原生选项卡的高亮由 Vue 按当前路由渲染，不会因为我们换 URL 参数而改变；
+    // 扩展选项卡激活时要手动摘掉它，切回去时再还给它
+    function syncNativeSelection(list, show) {
+        if (show) {
+            listEntries(list).forEach((entry) => {
+                if (injectedTab && injectedTab.contains(entry)) {
+                    return;
+                }
+                if (entry.classList.contains('selected')) {
+                    entry.classList.remove('selected');
+                    suppressedTabs.add(entry);
+                }
+            });
+        } else {
+            suppressedTabs.forEach((entry) => entry.classList.add('selected'));
+            suppressedTabs.clear();
+        }
+    }
 
     // SPA 换页离开设置页后清掉全部注入痕迹：
     // 裸 DOM 节点对 Vue 不可见，不主动拆就会残留在复用了同结构的页面上
@@ -230,6 +258,8 @@
             node.style.display = '';
         });
         hiddenCards.clear();
+        suppressedTabs.forEach((entry) => entry.classList.add('selected'));
+        suppressedTabs.clear();
     }
 
     function sync() {
@@ -258,12 +288,14 @@
                 }
             }
             if (injectedTab) {
-                // 绝不抢原生选项卡的高亮：激活态只由 URL 参数决定
+                // 激活态只由 URL 参数决定，但原生选项卡的高亮要一并摘掉/还回去，
+                // 否则两个选项卡会同时亮着
                 const entry = injectedTab.querySelector('span.entry');
                 if (entry) {
                     entry.classList.toggle('selected', show);
                 }
             }
+            syncNativeSelection(list, show);
         }
 
         const container = document.querySelector(CONTENT);
