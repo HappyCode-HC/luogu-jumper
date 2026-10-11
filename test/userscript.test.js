@@ -73,6 +73,275 @@ function requireArtifact() {
     }
 }
 
+/* ---------- SPA 换页回归用的迷你 DOM ---------- */
+
+// 洛谷换页不刷新，设置模块必须在离开时拆干净、进入时再注入。
+// 这里给一份够设置模块用的迷你 DOM：节点增删、cloneNode、classList、事件记录，
+// 以及支持逗号分组、后代/子代组合器、标签/类/ID 复合的简化选择器引擎。
+// 设置页与题单页各持有一份结构相同的选项卡容器和主内容区，
+// 复现洛谷在不同路由复用同一套结构、裸 DOM 注入会残留的场景。
+function makeSpaPage(startPath) {
+    const rafQueue = [];
+    const observers = [];
+
+    function matchesCompound(node, text) {
+        let rest = text;
+        const tag = /^([a-zA-Z][\w-]*)/.exec(rest);
+        if (tag) {
+            if (node.tagName !== tag[1].toUpperCase()) {
+                return false;
+            }
+            rest = rest.slice(tag[0].length);
+        }
+        const re = /([.#])([\w-]+)/g;
+        let matched = re.exec(rest);
+        while (matched !== null) {
+            if (matched[1] === '.' && !node.classList.contains(matched[2])) {
+                return false;
+            }
+            if (matched[1] === '#' && node.id !== matched[2]) {
+                return false;
+            }
+            matched = re.exec(rest);
+        }
+        return true;
+    }
+
+    function collect(node, maxDepth, compound, out) {
+        node.childNodes.forEach((kid) => {
+            if (matchesCompound(kid, compound) && !out.includes(kid)) {
+                out.push(kid);
+            }
+            if (maxDepth > 1) {
+                collect(kid, maxDepth - 1, compound, out);
+            }
+        });
+    }
+
+    function queryAll(root, selector) {
+        const out = [];
+        selector.split(',').forEach((rawPath) => {
+            const tokens = rawPath.trim().split(/\s+/).filter(Boolean);
+            let current = [root];
+            let childOnly = false;
+            tokens.forEach((token) => {
+                if (token === '>') {
+                    childOnly = true;
+                    return;
+                }
+                const next = [];
+                current.forEach((node) => collect(node, childOnly ? 1 : Infinity, token, next));
+                current = next;
+                childOnly = false;
+            });
+            current.forEach((node) => {
+                if (!out.includes(node)) {
+                    out.push(node);
+                }
+            });
+        });
+        return out;
+    }
+
+    function el(tagName, className) {
+        const node = {
+            tagName: tagName.toUpperCase(),
+            childNodes: [],
+            parentNode: null,
+            style: {},
+            attrs: {},
+            listeners: {},
+            className: className || '',
+            textContent: '',
+        };
+        node.classList = {
+            contains: (name) => node.className.split(/\s+/).includes(name),
+            add: (name) => {
+                if (!node.classList.contains(name)) {
+                    node.className = (node.className + ' ' + name).trim();
+                }
+            },
+            remove: (name) => {
+                node.className = node.className.split(/\s+/)
+                    .filter((piece) => piece && piece !== name)
+                    .join(' ');
+            },
+            toggle: (name, force) => {
+                if (force) {
+                    node.classList.add(name);
+                } else {
+                    node.classList.remove(name);
+                }
+            },
+        };
+        node.appendChild = (child) => {
+            if (child.parentNode) {
+                child.parentNode.removeChild(child);
+            }
+            child.parentNode = node;
+            node.childNodes.push(child);
+            return child;
+        };
+        node.removeChild = (child) => {
+            const at = node.childNodes.indexOf(child);
+            if (at >= 0) {
+                node.childNodes.splice(at, 1);
+            }
+            child.parentNode = null;
+            return child;
+        };
+        node.remove = () => {
+            if (node.parentNode) {
+                node.parentNode.removeChild(node);
+            }
+        };
+        node.setAttribute = (name, value) => {
+            node.attrs[name] = value;
+        };
+        node.removeAttribute = (name) => {
+            delete node.attrs[name];
+        };
+        node.addEventListener = (type, fn) => {
+            if (!node.listeners[type]) {
+                node.listeners[type] = [];
+            }
+            node.listeners[type].push(fn);
+        };
+        node.contains = (other) => {
+            for (let at = other; at; at = at.parentNode) {
+                if (at === node) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        node.cloneNode = () => {
+            const copy = el(tagName, node.className);
+            copy.textContent = node.textContent;
+            copy.attrs = Object.assign({}, node.attrs);
+            node.childNodes.forEach((kid) => copy.appendChild(kid.cloneNode()));
+            return copy;
+        };
+        node.querySelectorAll = (selector) => queryAll(node, selector);
+        node.querySelector = (selector) => queryAll(node, selector)[0] || null;
+        return node;
+    }
+
+    function buildPageDom(tabText) {
+        const wrap = el('div');
+        const headerCard = el('div', 'header-card');
+        const bottomRow = el('div', 'bottom-row');
+        const left = el('div', 'left');
+        const menu = el('div', 'menu');
+        const list = el('ul', 'items');
+        const item = el('li');
+        const entry = el('span', 'entry selected');
+        entry.textContent = tabText;
+        item.appendChild(entry);
+        list.appendChild(item);
+        menu.appendChild(list);
+        left.appendChild(menu);
+        bottomRow.appendChild(left);
+        headerCard.appendChild(bottomRow);
+        const main = el('main');
+        const content = el('div', 'columba-content-wrap main-content');
+        const nativeCard = el('div', 'l-card');
+        content.appendChild(nativeCard);
+        main.appendChild(content);
+        wrap.appendChild(headerCard);
+        wrap.appendChild(main);
+        return { wrap, list, content, nativeCard };
+    }
+
+    const pages = {
+        settings: buildPageDom('个人信息'),
+        problem: buildPageDom('题单'),
+    };
+    let current = startPath.startsWith('/user/setting') ? pages.settings : pages.problem;
+
+    const page = { navCalls: [], replaced: [] };
+    const location = {
+        hostname: 'www.luogu.com.cn',
+        pathname: startPath,
+        search: '',
+        href: 'https://www.luogu.com.cn' + startPath,
+        replace(url) {
+            page.replaced.push(url);
+        },
+    };
+
+    function applyUrl(url) {
+        const parsed = new URL(url, location.href);
+        location.pathname = parsed.pathname;
+        location.search = parsed.search;
+        location.href = parsed.href;
+    }
+
+    const sandbox = {
+        location,
+        document: {
+            body: el('body'),
+            documentElement: el('html'),
+            createElement: (tagName) => el(tagName),
+            querySelector: (selector) => current.wrap.querySelector(selector),
+            querySelectorAll: (selector) => current.wrap.querySelectorAll(selector),
+            addEventListener: () => {},
+        },
+        history: {
+            state: null,
+            pushState(state, title, url) {
+                page.navCalls.push('push ' + url);
+                // Vue 的渲染在微任务里完成、早于 rAF 回调：sync 跑起来时看到的已是新页面 DOM
+                current = String(url).startsWith('/user/setting') ? pages.settings : pages.problem;
+                applyUrl(url);
+            },
+            replaceState(state, title, url) {
+                page.navCalls.push('replace ' + url);
+                applyUrl(url);
+            },
+        },
+        MutationObserver: class {
+            constructor(callback) {
+                observers.push(callback);
+            }
+            observe() {}
+            disconnect() {}
+        },
+        requestAnimationFrame: (callback) => {
+            rafQueue.push(callback);
+            return rafQueue.length;
+        },
+        addEventListener: () => {},
+        URL,
+        console,
+    };
+    vm.createContext(sandbox);
+    sandbox.window = sandbox;
+
+    function flush() {
+        while (rafQueue.length > 0) {
+            rafQueue.shift()();
+        }
+    }
+
+    return {
+        sandbox,
+        page,
+        pages,
+        // 模拟洛谷 SPA 换页：pushState 换掉 DOM 与 URL，再放行防抖后的 sync
+        navigate(path) {
+            sandbox.history.pushState({}, '', path);
+            flush();
+        },
+        // 模拟一次 Vue 渲染引发的 DOM 变动
+        mutate() {
+            observers.slice().forEach((callback) => callback([], null));
+            flush();
+        },
+        flush,
+    };
+}
+
 test('产物能在页面环境里加载，并暴露出内部接口', () => {
     requireArtifact();
     const { sandbox } = makePage({});
@@ -119,4 +388,62 @@ test('题目页以外的路径不会触发跳转', () => {
     load(sandbox);
     assert.deepEqual(page.replaced, [], '不该有跳转');
     assert.equal(sandbox.__ljj.getConfig().intlRedirect, true, '开关仍然可读');
+});
+
+test('SPA 换页进设置页能注入扩展设置，离开时拆干净', () => {
+    requireArtifact();
+    const env = makeSpaPage('/problem/list');
+    load(env.sandbox);
+
+    // 脚本加载在题单页：该页也有能匹配上的选项卡容器，但什么都不该注入
+    env.mutate();
+    assert.equal(env.pages.problem.list.childNodes.length, 1, '题单页不该出现扩展设置选项卡');
+    assert.equal(env.pages.problem.content.childNodes.length, 1, '题单页不该被塞进扩展设置卡片');
+
+    // 不刷新换页进设置页：选项卡与卡片都应注入（无标记参数时卡片隐藏）
+    env.navigate('/user/setting');
+    const { list, content, nativeCard } = env.pages.settings;
+    assert.equal(list.childNodes.length, 2, '设置页应注入扩展设置选项卡');
+    const tab = list.childNodes[1];
+    assert.equal(tab.querySelector('span.entry').textContent, '扩展设置', '选项卡文案不对');
+    assert.equal(content.childNodes.length, 2, '设置页应挂上扩展设置卡片');
+    const card = content.childNodes[1];
+    assert.equal(card.style.display, 'none', '无标记参数时卡片应隐藏');
+    assert.equal(nativeCard.style.display, '', '原生卡片不该被隐藏');
+
+    // 点击扩展设置选项卡：URL 写入标记参数，卡片显示、原生卡片隐藏、选项卡高亮
+    tab.listeners.click[0]();
+    env.flush();
+    assert.ok(
+        env.page.navCalls.some((call) => call.startsWith('replace') && call.includes('luogu-jumper-setting=1')),
+        '标记参数没写进 URL'
+    );
+    assert.equal(card.style.display, '', '点击后卡片应可见');
+    assert.equal(nativeCard.style.display, 'none', '原生卡片应被隐藏');
+    assert.ok(tab.querySelector('span.entry').classList.contains('selected'), '选项卡应高亮');
+
+    // 再不刷新换回题单页：注入应全部拆除，原生卡片的内联样式要还原
+    env.navigate('/problem/list');
+    assert.equal(list.childNodes.length, 1, '离开设置页应移除扩展设置选项卡');
+    assert.equal(content.childNodes.length, 1, '离开设置页应移除扩展设置卡片');
+    assert.equal(nativeCard.style.display, '', '原生卡片的内联样式应被还原');
+    assert.equal(env.pages.problem.list.childNodes.length, 1, '题单页仍不该出现扩展设置');
+});
+
+test('设置页加载后 SPA 换页去别的页面，扩展设置不残留', () => {
+    requireArtifact();
+    const env = makeSpaPage('/user/setting');
+    load(env.sandbox);
+
+    // 加载时 DOM 已就绪：应立即注入；随后的 DOM 变动不应重复注入
+    assert.equal(env.pages.settings.list.childNodes.length, 2, '设置页加载时就该注入选项卡');
+    env.mutate();
+    assert.equal(env.pages.settings.list.childNodes.length, 2, 'sync 应幂等，不重复注入');
+
+    // 不刷新换页去题单：那边有一模一样的结构，不能把扩展设置带过去
+    env.navigate('/problem/list');
+    assert.equal(env.pages.problem.list.childNodes.length, 1, '题单页不该出现扩展设置选项卡');
+    assert.equal(env.pages.problem.content.childNodes.length, 1, '题单页不该被塞进扩展设置卡片');
+    assert.equal(env.pages.settings.list.childNodes.length, 1, '旧选项卡应被移除');
+    assert.equal(env.pages.settings.content.childNodes.length, 1, '旧卡片应被移除');
 });

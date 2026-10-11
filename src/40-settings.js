@@ -22,9 +22,10 @@
         }
     }
 
-    // 只处理用户设置页及其子路径
-    if (!/^\/user\/setting(?![^/])/.test(location.pathname)) {
-        return;
+    // 洛谷是 SPA，换页不会重新执行脚本：路径必须在每次 sync 时判定，
+    // 不能只在加载时判一次，否则换页进设置页看不到注入、换页离开又拆不掉
+    function isSettingPage() {
+        return /^\/user\/setting(?![^/])/.test(location.pathname);
     }
 
     function setFlag(on) {
@@ -209,17 +210,50 @@
     }
 
     let injectedTab = null;
+    // 被我们隐藏过的原生卡片；拆除时要还原内联样式，
+    // 免得 Vue 跨页面复用节点时把 display:none 带到别的页面
+    const hiddenCards = new Set();
+    // sync 由 DOM 变动高频驱动，克隆失败的告警只报一次
+    let cloneWarned = false;
+
+    // SPA 换页离开设置页后清掉全部注入痕迹：
+    // 裸 DOM 节点对 Vue 不可见，不主动拆就会残留在复用了同结构的页面上
+    function teardown() {
+        if (injectedTab) {
+            injectedTab.remove();
+            injectedTab = null;
+        }
+        if (card) {
+            card.remove();
+        }
+        hiddenCards.forEach((node) => {
+            node.style.display = '';
+        });
+        hiddenCards.clear();
+    }
 
     function sync() {
+        // 只处理用户设置页及其子路径；其余页面一律拆除后返回
+        if (!isSettingPage()) {
+            teardown();
+            return;
+        }
+
         const list = document.querySelector(TAB_LIST);
         const show = hasFlag(location.href);
 
         if (list) {
-            if (!injectedTab || !injectedTab.isConnected) {
+            // Vue 重建后旧选项卡会脱离文档或挂在已被替换的列表上，从当前列表重新克隆
+            if (injectedTab && injectedTab.parentNode !== list) {
+                injectedTab.remove();
+                injectedTab = null;
+            }
+            if (!injectedTab) {
                 injectedTab = cloneTab();
                 if (injectedTab) {
                     list.appendChild(injectedTab);
-                } else {
+                } else if (!cloneWarned) {
+                    cloneWarned = true;
                     console.warn('[Luogu Jumper] 未能克隆设置页选项卡，扩展设置入口暂不可用');
                 }
             }
@@ -245,8 +279,14 @@
         }
 
         container.querySelectorAll('.l-card').forEach((node) => {
-            if (node !== card) {
-                node.style.display = show ? 'none' : '';
+            if (node === card) {
+                return;
+            }
+            node.style.display = show ? 'none' : '';
+            if (show) {
+                hiddenCards.add(node);
+            } else {
+                hiddenCards.delete(node);
             }
         });
         card.style.display = show ? '' : 'none';
@@ -263,15 +303,22 @@
         });
     }
 
-    // 只观察洛谷的选项卡容器，避免全文档级别的回调抖动
-    function observe() {
-        const list = document.querySelector(TAB_LIST);
-        if (!list) {
-            return false;
+    // SPA 换页时 URL 先于 DOM 变化，挂上 pushState/replaceState 是最早的可靠信号。
+    // 与 20-international 一致：window.history 覆盖不到页面世界时补打页面世界的 History
+    const historyTarget = (cfg.pageWindow && cfg.pageWindow.history !== history)
+        ? cfg.pageWindow.history
+        : history;
+    ['pushState', 'replaceState'].forEach((name) => {
+        const native = historyTarget[name];
+        if (typeof native !== 'function') {
+            return;
         }
-        new MutationObserver(schedule).observe(list, { childList: true });
-        return true;
-    }
+        historyTarget[name] = function (...args) {
+            const result = native.apply(this, args);
+            schedule();
+            return result;
+        };
+    });
 
     window.addEventListener('popstate', () => {
         setFlag(false);
@@ -289,15 +336,9 @@
         }
     }, true);
 
-    if (observe()) {
-        sync();
-    } else {
-        const waiter = new MutationObserver(() => {
-            if (observe()) {
-                waiter.disconnect();
-                sync();
-            }
-        });
-        waiter.observe(document.documentElement, { childList: true, subtree: true });
-    }
+    // Vue 异步渲染、节点重建与 SPA 换页都表现为 DOM 增删：常驻文档级观察 + rAF 防抖。
+    // 不能只盯单个选项卡容器——换页后旧节点脱离文档，观察器就再也收不到信号；
+    // sync 幂等，非设置页时只做一次路径判断加空拆除，文档级回调没有性能问题
+    new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+    sync();
 })();
