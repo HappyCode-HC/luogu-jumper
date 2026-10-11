@@ -282,6 +282,7 @@ function makeSpaPage(startPath) {
         document: {
             body: el('body'),
             documentElement: el('html'),
+            head: el('head'),
             createElement: (tagName) => el(tagName),
             querySelector: (selector) => current.wrap.querySelector(selector),
             querySelectorAll: (selector) => current.wrap.querySelectorAll(selector),
@@ -405,7 +406,7 @@ test('SPA 换页进设置页能注入扩展设置，离开时拆干净', () => {
     const { list, content, nativeCard } = env.pages.settings;
     assert.equal(list.childNodes.length, 2, '设置页应注入扩展设置选项卡');
     const tab = list.childNodes[1];
-    assert.equal(tab.querySelector('span.entry').textContent, '扩展设置', '选项卡文案不对');
+    assert.equal(tab.querySelector('span.entry').textContent, 'Luogu Jumper 设置', '选项卡文案不对');
     assert.equal(content.childNodes.length, 2, '设置页应挂上扩展设置卡片');
     const card = content.childNodes[1];
     assert.equal(card.style.display, 'none', '无标记参数时卡片应隐藏');

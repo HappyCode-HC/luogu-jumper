@@ -86,6 +86,20 @@
                 border-radius: 50%;
                 background: ${ACCENT};
             }
+            .ljj-button {
+                padding: 5px 14px;
+                border: none;
+                border-radius: 3px;
+                background: ${ACCENT};
+                color: #fff;
+                font-size: 14px;
+                line-height: 1.5;
+                cursor: pointer;
+            }
+            .ljj-button:disabled {
+                opacity: 0.6;
+                cursor: default;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -172,22 +186,11 @@
         hint.textContent = '修改后刷新页面生效。';
         el.appendChild(hint);
 
-        const featureTitle = document.createElement('h3');
-        featureTitle.className = 'lfe-h3';
-        featureTitle.textContent = '功能开关';
-        el.appendChild(featureTitle);
-
         el.appendChild(makeRow('题目跳转', 'problemVjudge', '在题目页显示「跳转VJudge」按钮'));
         el.appendChild(makeRow('国际站跳转', 'intlRedirect', '国际站云剪/专栏自动跳转到保存站'));
         el.appendChild(makeRow('新版本提醒', 'updateNotice', '发现新版本时通知一次'));
 
-        const updateTitle = document.createElement('h3');
-        updateTitle.className = 'lfe-h3';
-        updateTitle.textContent = '插件更新';
-        updateTitle.style.marginTop = '22px';
-        el.appendChild(updateTitle);
-
-        el.appendChild(buildUpdateRow());
+        el.appendChild(makeUpdateRow());
 
         // 卡片是裸 DOM，可能被 Vue 重建；重建后状态要重新填充
         requestAnimationFrame(() => refreshUpdateStatus(false));
@@ -195,41 +198,52 @@
         return el;
     }
 
-    function buildUpdateRow() {
-        const status = document.createElement('div');
+    // 插件更新行：左侧粗体标签，右侧浅色版本信息 + 检查更新按钮，布局对齐功能开关行
+    function makeUpdateRow() {
+        const row = document.createElement('div');
+        row.className = 'l-form-layout row';
+        row.style.display = 'flex';
+        row.style.alignItems = 'flex-start';
+        row.style.gap = '24px';
+        row.style.marginTop = '22px';
 
-        const current = document.createElement('div');
+        const label = document.createElement('span');
+        label.style.flex = '0 0 140px';
+        label.style.fontWeight = '600';
+        label.textContent = '插件更新';
+
+        const box = document.createElement('div');
+        box.style.flex = '1 1 auto';
+
+        const current = document.createElement('p');
+        current.style.margin = '0 0 4px';
         current.style.fontSize = '13px';
         current.style.opacity = '0.75';
-        current.textContent = '当前版本：' + version();
-        status.appendChild(current);
+        current.textContent = '当前版本：v' + version();
+        box.appendChild(current);
 
-        const line = document.createElement('div');
-        line.style.display = 'flex';
-        line.style.alignItems = 'center';
-        line.style.gap = '10px';
-        line.style.marginTop = '8px';
+        const note = document.createElement('p');
+        note.id = 'ljj-update-status';
+        note.style.margin = '0 0 10px';
+        note.style.fontSize = '13px';
+        note.style.opacity = '0.75';
+        box.appendChild(note);
 
         const button = document.createElement('button');
         button.type = 'button';
         button.id = 'ljj-update-button';
-        button.className = 'lfe-button';
+        button.className = 'ljj-button';
         button.textContent = '检查更新';
         button.addEventListener('click', () => {
             if (globalThis.__ljjUpdate) {
                 globalThis.__ljjUpdate.checkForUpdates(true);
             }
         });
-        line.appendChild(button);
+        box.appendChild(button);
 
-        const note = document.createElement('span');
-        note.id = 'ljj-update-status';
-        note.style.fontSize = '13px';
-        note.style.opacity = '0.8';
-        line.appendChild(note);
-
-        status.appendChild(line);
-        return status;
+        row.appendChild(label);
+        row.appendChild(box);
+        return row;
     }
 
     function refreshUpdateStatus(force) {
