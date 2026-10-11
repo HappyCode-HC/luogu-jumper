@@ -8,7 +8,7 @@
     }
 
     // 与洛谷原生选项卡并列的扩展设置项，URL 上的标记参数
-    const TAB_LABEL = '扩展设置';
+    const TAB_LABEL = 'Luogu Jumper 设置';
     const FLAG = 'luogu-jumper-setting';
     // 只认未哈希的类名：data-v-* 每次发版都会变，硬编码必然失效
     const TAB_LIST = '.header-card .bottom-row .left .menu > ul.items';
@@ -93,16 +93,11 @@
         el.className = 'l-card';
         el.style.padding = '20px';
 
-        const title = document.createElement('h2');
-        title.className = 'lfe-h2';
-        title.textContent = TAB_LABEL;
-        el.appendChild(title);
-
         const hint = document.createElement('p');
         hint.style.margin = '4px 0 16px';
         hint.style.opacity = '0.75';
         hint.style.fontSize = '13px';
-        hint.textContent = '所有开关在页面加载时读取一次，修改后刷新页面生效。';
+        hint.textContent = '修改后刷新页面生效。';
         el.appendChild(hint);
 
         const featureTitle = document.createElement('h3');
@@ -115,7 +110,7 @@
 
         const updateTitle = document.createElement('h3');
         updateTitle.className = 'lfe-h3';
-        updateTitle.textContent = '更新选项';
+        updateTitle.textContent = '插件更新';
         updateTitle.style.marginTop = '22px';
         el.appendChild(updateTitle);
 
