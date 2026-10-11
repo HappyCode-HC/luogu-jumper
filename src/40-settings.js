@@ -48,47 +48,119 @@
         }
     }
 
-    function makeRow(labelText, control, hintText) {
+    // 洛谷单选框的主题蓝，与原生「学术模式」等设置项的选中色一致
+    const ACCENT = 'rgb(52, 152, 219)';
+
+    // 原生单选框是靠 FontAwesome 图标 + scoped CSS 画出来的空心圈/实心点样式，
+    // 裸 DOM 拿不到那套 scoped 规则，干脆自己注入一份不依赖哈希类名的样式，
+    // 用 appearance:none 在原生 input 上画同款圆圈
+    let stylesInjected = false;
+    function ensureStyles() {
+        if (stylesInjected) {
+            return;
+        }
+        stylesInjected = true;
+
+        const style = document.createElement('style');
+        style.textContent = `
+            .ljj-radio-row { display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 6px; }
+            .ljj-radio {
+                appearance: none;
+                -webkit-appearance: none;
+                position: relative;
+                flex: 0 0 auto;
+                width: 14px;
+                height: 14px;
+                margin: 0;
+                border: 1.5px solid ${ACCENT};
+                border-radius: 50%;
+                cursor: pointer;
+            }
+            .ljj-radio:checked::after {
+                content: '';
+                position: absolute;
+                top: 3px;
+                left: 3px;
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: ${ACCENT};
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 功能行：标签 + 浅色功能介绍 + 关闭/开启单选，左右两栏对齐洛谷原生设置项的排版。
+    // .l-form-layout.row 的左右分栏样式是 Vue scoped CSS，绑定着每版都变的 data-v-* hash，
+    // 我们的裸 DOM 拿不到这个 hash、吃不到那条规则，所以布局必须自己用内联样式摆，
+    // class 只用来蹭字体、颜色之类的全局样式
+    function makeRow(labelText, key, descText) {
         const row = document.createElement('div');
         row.className = 'l-form-layout row';
+        row.style.display = 'flex';
+        row.style.alignItems = 'flex-start';
+        row.style.gap = '24px';
         row.style.marginBottom = '14px';
 
         const label = document.createElement('span');
+        label.style.flex = '0 0 140px';
+        label.style.fontWeight = '600';
         label.textContent = labelText;
 
         const box = document.createElement('div');
+        box.style.flex = '1 1 auto';
 
-        const line = document.createElement('label');
-        line.style.display = 'flex';
-        line.style.alignItems = 'center';
-        line.style.gap = '8px';
-        line.style.cursor = 'pointer';
-        line.appendChild(control);
+        const desc = document.createElement('p');
+        desc.style.margin = '0 0 10px';
+        desc.style.fontSize = '13px';
+        desc.style.opacity = '0.75';
+        desc.textContent = descText;
+        box.appendChild(desc);
 
-        const name = document.createElement('span');
-        name.textContent = hintText;
-        line.appendChild(name);
+        box.appendChild(makeRadioGroup(key));
 
-        box.appendChild(line);
         row.appendChild(label);
         row.appendChild(box);
         return row;
     }
 
-    function makeCheckbox(key) {
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.checked = Boolean(cfg.getConfig()[key]);
-        input.addEventListener('change', () => {
-            cfg.setConfig(key, input.checked);
-            setStatus('设置已保存，刷新页面后生效');
+    function makeRadioGroup(key) {
+        const group = document.createElement('div');
+        const current = Boolean(cfg.getConfig()[key]);
+
+        [['关闭', false], ['开启', true]].forEach(([text, value]) => {
+            const line = document.createElement('label');
+            line.className = 'ljj-radio-row';
+
+            const input = document.createElement('input');
+            input.type = 'radio';
+            input.className = 'ljj-radio';
+            input.name = 'ljj-' + key;
+            input.checked = current === value;
+            input.addEventListener('change', () => {
+                if (!input.checked) {
+                    return;
+                }
+                cfg.setConfig(key, value);
+                setStatus('设置已保存，刷新页面后生效');
+            });
+            line.appendChild(input);
+
+            const name = document.createElement('span');
+            name.textContent = text;
+            line.appendChild(name);
+
+            group.appendChild(line);
         });
-        return input;
+
+        return group;
     }
 
     let card = null;
 
     function buildCard() {
+        ensureStyles();
+
         const el = document.createElement('div');
         el.className = 'l-card';
         el.style.padding = '20px';
@@ -105,16 +177,15 @@
         featureTitle.textContent = '功能开关';
         el.appendChild(featureTitle);
 
-        el.appendChild(makeRow('题目跳转', makeCheckbox('problemVjudge'), '在题目页显示「跳转VJudge」按钮'));
-        el.appendChild(makeRow('国际站跳转', makeCheckbox('intlRedirect'), '国际站云剪/专栏自动跳转到保存站'));
+        el.appendChild(makeRow('题目跳转', 'problemVjudge', '在题目页显示「跳转VJudge」按钮'));
+        el.appendChild(makeRow('国际站跳转', 'intlRedirect', '国际站云剪/专栏自动跳转到保存站'));
+        el.appendChild(makeRow('新版本提醒', 'updateNotice', '发现新版本时通知一次'));
 
         const updateTitle = document.createElement('h3');
         updateTitle.className = 'lfe-h3';
         updateTitle.textContent = '插件更新';
         updateTitle.style.marginTop = '22px';
         el.appendChild(updateTitle);
-
-        el.appendChild(makeRow('新版本提醒', makeCheckbox('updateNotice'), '发现新版本时通知一次'));
 
         el.appendChild(buildUpdateRow());
 
