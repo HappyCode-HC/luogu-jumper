@@ -9,6 +9,11 @@
         return;
     }
 
+    // luogu.me 仅新功能（双击题号跳转）生效：旧功能未在保存站适配过，限定主站两域名运行
+    if (location.hostname !== 'www.luogu.com.cn' && location.hostname !== 'www.luogu.com') {
+        return;
+    }
+
     function isContestPrivateProblem(path) {
         return (
             /(^|[?&])contestId=/.test(window.location.search) &&
