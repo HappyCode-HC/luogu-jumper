@@ -18,6 +18,15 @@
 
 在 `www.luogu.com` 上打开 `/article/...` 或 `/paste/...`，直接跳到 `www.luogu.me` 上的同一个地址。
 
+### 双击题号跳转
+
+在任意页面双击洛谷题号，会在新标签页打开对应题目页。
+
+支持的题号格式：
+- 洛谷题库（P/B）；
+- 洛谷私题（U/T）；
+- Remote Judge（CF/AT/SP/UVA）。
+
 ## 扩展设置
 
 打开[用户设置](https://www.luogu.com.cn/user/setting)，选项卡里会多出一个「Luogu Jumper 设置」，里面是各功能的开关和更新选项。
@@ -47,6 +56,7 @@
 | `src/20-international.js` | 国际站跳转保存站 |
 | `src/30-update.js` | 更新检查 |
 | `src/40-settings.js` | 用户设置页的扩展设置选项卡 |
+| `src/50-dblclick-jump.js` | 双击题号跳转 |
 | `src/header.txt` | userscript 头部，`@version` 用 `__VERSION__` 占位 |
 
 `build.js` 把模块按文件名顺序合并，并用 `--version` 指定的值替换头部占位符：

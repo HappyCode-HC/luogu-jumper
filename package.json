@@ -1,7 +1,7 @@
 {
   "name": "luogu-jumper",
   "private": true,
-  "description": "洛谷跳转器 userscript：题目跳转 Vjudge，国际站跳转保存站",
+  "description": "洛谷跳转器 userscript：题目跳转 Vjudge，国际站跳转保存站，双击题号跳转",
   "scripts": {
     "build": "node build.js",
     "verify": "node scripts/check-userscript.js --require-artifact",
