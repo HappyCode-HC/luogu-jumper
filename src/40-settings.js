@@ -193,6 +193,7 @@
 
         el.appendChild(makeRow('题目跳转', 'problemVjudge', '在题目页显示「跳转VJudge」按钮'));
         el.appendChild(makeRow('国际站跳转', 'intlRedirect', '国际站云剪/专栏自动跳转到保存站'));
+        el.appendChild(makeRow('双击跳转', 'dblclickJump', '双击题号文本在新标签页打开题目页'));
         el.appendChild(makeRow('新版本提醒', 'updateNotice', '发现新版本时通知一次'));
 
         el.appendChild(makeUpdateRow());
