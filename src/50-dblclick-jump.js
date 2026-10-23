@@ -41,23 +41,23 @@
     // 从文本 index 处向两侧扩展出连续的 [A-Za-z0-9_] 词：
     // 中文混排（「这题P1000，」「（CF1234A）」）里双击也能拿到完整题号
     function expandWord(text, index) {
-        const source = String(text);
         const at = Number(index);
-        if (!source || Number.isNaN(at) || at < 0 || at >= source.length) {
+        if (typeof text !== 'string' || text === ''
+            || Number.isNaN(at) || at < 0 || at >= text.length) {
             return null;
         }
-        if (!/[\w]/.test(source[at])) {
+        if (!/[\w]/.test(text[at])) {
             return null;
         }
         let start = at;
         let end = at;
-        while (start > 0 && /[\w]/.test(source[start - 1])) {
+        while (start > 0 && /[\w]/.test(text[start - 1])) {
             start -= 1;
         }
-        while (end < source.length - 1 && /[\w]/.test(source[end + 1])) {
+        while (end < text.length - 1 && /[\w]/.test(text[end + 1])) {
             end += 1;
         }
-        return source.slice(start, end + 1);
+        return text.slice(start, end + 1);
     }
 
     // 双击落点所在的文本节点与偏移；Chrome/Firefox 的 API 名不同，逐个尝试

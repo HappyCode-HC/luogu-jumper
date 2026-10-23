@@ -11,7 +11,7 @@ const vm = require('node:vm');
 const ARTIFACT = path.join(__dirname, '..', 'script.js');
 
 // 一份够用的假页面：DOM 查询一律返回空，MutationObserver 只记录观察不触发回调，
-// 两个功能开关都打开，这样每个模块都会走到自己的主路径而不是提前 return。
+// 各功能开关都打开，这样每个模块都会走到自己的主路径而不是提前 return。
 function makePage(overrides) {
     const page = Object.assign({
         hostname: 'www.luogu.com.cn',
@@ -19,6 +19,8 @@ function makePage(overrides) {
         search: '',
         href: 'https://www.luogu.com.cn/problem/P1001',
         replaced: [],
+        documentListeners: {},
+        openCalls: [],
     }, overrides);
 
     const location = {
@@ -39,7 +41,9 @@ function makePage(overrides) {
             querySelector: () => null,
             querySelectorAll: () => [],
             createElement: () => ({ style: {}, dataset: {}, addEventListener() {} }),
-            addEventListener: () => {},
+            addEventListener(type, handler) {
+                (page.documentListeners[type] = page.documentListeners[type] || []).push(handler);
+            },
         },
         history: { state: null, pushState() {}, replaceState() {} },
         MutationObserver: class {
@@ -51,6 +55,9 @@ function makePage(overrides) {
         },
         requestAnimationFrame: () => 0,
         addEventListener: () => {},
+        open(url) {
+            page.openCalls.push(url);
+        },
         URL,
         console,
         // 油猴 API 一律不提供，走脚本自己的兜底分支
@@ -450,4 +457,102 @@ test('设置页加载后 SPA 换页去别的页面，扩展设置不残留', () 
     assert.equal(env.pages.problem.content.childNodes.length, 1, '题单页不该被塞进扩展设置卡片');
     assert.equal(env.pages.settings.list.childNodes.length, 1, '旧选项卡应被移除');
     assert.equal(env.pages.settings.content.childNodes.length, 1, '旧卡片应被移除');
+});
+
+/* ---------- 双击题号跳转 ---------- */
+
+test('双击题号：规则逐条正反例', () => {
+    requireArtifact();
+    const { sandbox } = makePage({});
+    load(sandbox);
+    const { matchPid } = sandbox.__ljjDblJump;
+
+    const hits = [
+        'P1000', 'p1000', 'P10000', 'B2000', 'b2000',
+        'U431992', 'u2', 'T800', 't800', 'SP1', 'sp100',
+        'UVA100', 'UVA12345', 'uva100',
+        'CF1A', 'cf1234a', 'CF1234D2',
+        'AT_abc123_a', 'at_abc123_a', 'ATabc123_a', 'AT_code_festival_2016_a',
+    ];
+    const misses = [
+        '', 'P100', 'p999', 'B12', 'b2', 'UVA12', 'CF1234', 'cf',
+        'attempt', 'attention', 'at_home', 'AT_abc123', 'at_a_b1',
+        'P1000abc', 'CP1000', 'ABC123', null, undefined, 1000,
+    ];
+
+    hits.forEach((word) => assert.equal(matchPid(word), word, '应命中 ' + word));
+    misses.forEach((word) => assert.equal(matchPid(word), null, '不应命中 ' + word));
+});
+
+test('双击题号：落点扩展兼容中文混排与边界', () => {
+    requireArtifact();
+    const { sandbox } = makePage({});
+    load(sandbox);
+    const { expandWord } = sandbox.__ljjDblJump;
+    const text = '这题P1000，很好';
+
+    assert.equal(expandWord(text, 2), 'P1000', '落点在前缀上');
+    assert.equal(expandWord(text, 5), 'P1000', '落点在数字中段');
+    assert.equal(expandWord(text, 6), 'P1000', '落点在数字末位');
+    assert.equal(expandWord(text, 7), null, '落点在标点上');
+    assert.equal(expandWord(text, 99), null, '落点越界');
+    assert.equal(expandWord('(CF1234A)', 4), 'CF1234A', '括号内扩展');
+    assert.equal(expandWord('www.luogu.com.cn/problem/P1001', 26), 'P1001', 'URL 路径里的题号');
+    assert.equal(expandWord('', 0), null, '空文本');
+    assert.equal(expandWord(undefined, 0), null, '非字符串输入');
+});
+
+test('双击题号：命中开新标签，排除区域与未命中不触发，选区兜底', () => {
+    requireArtifact();
+    const { sandbox, page } = makePage({});
+    sandbox.getSelection = () => ({ toString: () => '' });
+    load(sandbox);
+
+    const handlers = page.documentListeners.dblclick || [];
+    assert.equal(handlers.length, 1, '应注册文档级 dblclick 委托');
+    const handler = handlers[0];
+
+    // 记录 window.open 返回的标签，验证 opener 被断开
+    const tabs = [];
+    sandbox.open = (url) => {
+        page.openCalls.push(url);
+        const tab = { opener: {} };
+        tabs.push(tab);
+        return tab;
+    };
+
+    // 落点路径：caretRangeFromPoint 给出文本节点与偏移（「先看P1001再说」下标 2-6 是题号）
+    sandbox.document.caretRangeFromPoint = () => ({
+        startContainer: { nodeType: 3, data: '先看P1001再说' },
+        startOffset: 4,
+    });
+    handler({ button: 0, clientX: 1, clientY: 1, target: { closest: () => null, isContentEditable: false } });
+    assert.deepEqual(page.openCalls, ['https://www.luogu.com.cn/problem/P1001'], '命中应在新标签打开题目页');
+    assert.equal(tabs[0].opener, null, '应断开新标签的 opener');
+
+    // 排除区域：链接内部与可编辑区都不触发
+    handler({ button: 0, clientX: 1, clientY: 1, target: {
+        closest: (selector) => (selector === 'a, input, textarea' ? {} : null),
+        isContentEditable: false,
+    } });
+    handler({ button: 0, clientX: 1, clientY: 1, target: { closest: () => null, isContentEditable: true } });
+    assert.equal(page.openCalls.length, 1, '排除区域不应触发跳转');
+
+    // 未命中：不打扰默认的双击选中
+    sandbox.document.caretRangeFromPoint = () => ({
+        startContainer: { nodeType: 3, data: 'hello world' },
+        startOffset: 1,
+    });
+    handler({ button: 0, clientX: 1, clientY: 1, target: { closest: () => null, isContentEditable: false } });
+    assert.equal(page.openCalls.length, 1, '未命中不应跳转');
+
+    // 选区兜底：拿不到落点时用双击选区整体
+    delete sandbox.document.caretRangeFromPoint;
+    sandbox.getSelection = () => ({ toString: () => 'UVA123' });
+    handler({ button: 0, clientX: 1, clientY: 1, target: { closest: () => null, isContentEditable: false } });
+    assert.deepEqual(
+        page.openCalls,
+        ['https://www.luogu.com.cn/problem/P1001', 'https://www.luogu.com.cn/problem/UVA123'],
+        '兜底选区也应能跳转'
+    );
 });
