@@ -7,6 +7,11 @@
         return;
     }
 
+    // luogu.me 仅新功能（双击题号跳转）生效：旧功能未在保存站适配过，限定主站两域名运行
+    if (location.hostname !== 'www.luogu.com.cn' && location.hostname !== 'www.luogu.com') {
+        return;
+    }
+
     // 与洛谷原生选项卡并列的扩展设置项，URL 上的标记参数
     const TAB_LABEL = 'Luogu Jumper 设置';
     const FLAG = 'luogu-jumper-setting';
@@ -188,6 +193,7 @@
 
         el.appendChild(makeRow('题目跳转', 'problemVjudge', '在题目页显示「跳转VJudge」按钮'));
         el.appendChild(makeRow('国际站跳转', 'intlRedirect', '国际站云剪/专栏自动跳转到保存站'));
+        el.appendChild(makeRow('双击跳转', 'dblclickJump', '双击题号文本在新标签页打开题目页'));
         el.appendChild(makeRow('新版本提醒', 'updateNotice', '发现新版本时通知一次'));
 
         el.appendChild(makeUpdateRow());

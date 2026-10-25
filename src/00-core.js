@@ -67,6 +67,7 @@
     const DEFAULT_CONFIG = {
         problemVjudge: true,
         intlRedirect: true,
+        dblclickJump: true,
         updateNotice: true,
     };
 
